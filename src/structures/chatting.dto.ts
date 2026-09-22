@@ -1,9 +1,4 @@
-import {
-  ApiExtraModels,
-  ApiHideProperty,
-  ApiProperty,
-  getSchemaPath,
-} from '@nestjs/swagger';
+import { ApiExtraModels, ApiProperty, getSchemaPath } from '@nestjs/swagger';
 import { IsFileType } from '@waha/nestjs/validation/IsFileType';
 import { TrimString, TrimStrings } from '@waha/nestjs/validation/TrimString';
 import { GetChatMessagesQuery } from '@waha/structures/chats.dto';
@@ -43,6 +38,7 @@ import {
   ChatIdProperty,
   ConvertApiProperty,
   GeneratedMessageIdProperty,
+  MentionsProperty,
   ReplyToProperty,
 } from './properties.dto';
 
@@ -190,7 +186,7 @@ export class MessageTextRequest extends ChatRequest {
 
   text: string = 'Hi there!';
 
-  @ApiHideProperty()
+  @MentionsProperty()
   mentions?: string[];
 
   @ReplyToProperty()
@@ -272,7 +268,7 @@ export class MessageLinkCustomPreviewRequest extends ChatRequest {
 export class EditMessageRequest {
   text: string = 'Hello, world!';
 
-  @ApiHideProperty()
+  @MentionsProperty()
   mentions?: string[];
 
   linkPreview?: boolean = true;
@@ -320,7 +316,7 @@ class FileRequest extends ChatRequest {
 export class MessageImageRequest extends FileRequest {
   caption?: string;
 
-  @ApiHideProperty()
+  @MentionsProperty()
   mentions?: string[];
 
   @ReplyToProperty()
@@ -330,7 +326,7 @@ export class MessageImageRequest extends FileRequest {
 export class MessageFileRequest extends FileRequest {
   caption?: string;
 
-  @ApiHideProperty()
+  @MentionsProperty()
   mentions?: string[];
 
   @ReplyToProperty()
@@ -366,7 +362,7 @@ export class MessageVideoRequest extends ChatRequest {
 
   caption?: string = 'Just watch at this!';
 
-  @ApiHideProperty()
+  @MentionsProperty()
   mentions?: string[];
 
   @ApiProperty({
