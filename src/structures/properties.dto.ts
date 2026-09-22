@@ -34,7 +34,7 @@ function MentionsProperty() {
   return ApiProperty({
     description:
       'Chat IDs to mention in the message. Use ["all"] to mention all participants in a group.',
-    example: ['11111111111@c.us'],
+    example: null,
     required: false,
   });
 }
