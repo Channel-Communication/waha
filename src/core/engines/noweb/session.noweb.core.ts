@@ -3794,6 +3794,20 @@ export class NOWEBEngineMediaProcessor implements IMediaEngineProcessor<any> {
       content.url = null;
     }
 
+    // Baileys unwraps hydratedTemplate only, so download the interactive template header as a plain media message
+    const header = extractMessageContent(message.message)?.templateMessage
+      ?.interactiveMessageTemplate?.header;
+    if (header) {
+      message = {
+        key: message.key,
+        message: lodash.pick(header, [
+          'imageMessage',
+          'videoMessage',
+          'documentMessage',
+        ]),
+      };
+    }
+
     // Use 'stream' mode instead of 'buffer' to fix 0-byte audio files
     // 'buffer' mode silently returns empty buffer for audio/voice messages
     // See: https://github.com/devlikeapro/waha/issues/1996
@@ -3826,8 +3840,8 @@ export class NOWEBEngineMediaProcessor implements IMediaEngineProcessor<any> {
   }
 
   getFilename(message: any): string | null {
-    const content = extractMessageContent(message.message);
-    return content?.documentMessage?.fileName || null;
+    const content = extractMediaContent(message.message);
+    return content?.fileName || null;
   }
 }
 
