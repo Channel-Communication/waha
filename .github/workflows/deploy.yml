@@ -1,0 +1,84 @@
+name: Deploy WAHA Production
+
+on:
+  push:
+    tags:
+      - '*-release'
+  workflow_dispatch:
+
+jobs:
+  deploy_production:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup SSH and Deploy
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          LOGIN_VPS: ${{ secrets.LOGIN_VPS }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT || 22 }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          # 1. Validasi SSH Key
+          if [ -z "${SSH_PRIVATE_KEY:-}" ]; then
+            echo "❌ Error: Secret SSH_PRIVATE_KEY belum dikonfigurasi di GitHub Secrets."
+            exit 1
+          fi
+
+          # 2. Siapkan direktori .ssh
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+          # 3. Tentukan Target Host (mendukung LOGIN_VPS atau SERVER_USER@SERVER_HOST)
+          TARGET_HOST="${LOGIN_VPS:-${SERVER_USER}@${SERVER_HOST}}"
+          if [ -z "$TARGET_HOST" ] || [ "$TARGET_HOST" = "@" ]; then
+            echo "❌ Error: Target host kosong. Harap isi secret LOGIN_VPS (contoh: ubuntu@1.2.3.4) atau SERVER_USER & SERVER_HOST."
+            exit 1
+          fi
+
+          echo "🚀 Menghubungkan ke $TARGET_HOST melalui port ${SERVER_PORT:-22}..."
+
+          # 4. Eksekusi deployment di VPS (mengikuti flow standar excitech)
+          ssh -i ~/.ssh/id_rsa -p "${SERVER_PORT:-22}" -o StrictHostKeyChecking=no "$TARGET_HOST" "RELEASE_TAG='${RELEASE_TAG}' bash -s" << 'EOF'
+          set -e
+          echo "🚀 Starting WAHA Deployment..."
+
+          APP_DIR="/home/ubuntu/app/waha"
+          if [ -d "$APP_DIR" ]; then
+            cd "$APP_DIR"
+          elif [ -d "$HOME/app/waha" ]; then
+            cd "$HOME/app/waha"
+          elif [ -d "/opt/waha" ]; then
+            cd "/opt/waha"
+          else
+            echo "⚠️ Direktori waha tidak ditemukan di path umum. Tetap di direktori saat ini: $(pwd)"
+          fi
+
+          echo "📍 Working Directory: $(pwd)"
+
+          # Ambil tag jika trigger berasal dari tag *-release, atau fallback pull branch
+          if [ -n "${RELEASE_TAG:-}" ] && [ "${RELEASE_TAG}" != "core" ] && [ "${RELEASE_TAG}" != "main" ]; then
+            echo "🏷️ 1. Fetching & Checking out release tag: ${RELEASE_TAG}..."
+            git fetch --tags origin
+            git checkout "${RELEASE_TAG}"
+          else
+            echo "🔄 1. Pulling latest code..."
+            git fetch origin
+            CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "core")
+            git reset --hard origin/$CURRENT_BRANCH || git pull origin $CURRENT_BRANCH
+          fi
+
+          echo "🌐 2. Ensuring Docker network 'excitech-net' exists..."
+          docker network create excitech-net 2>/dev/null || true
+
+          echo "🐳 3. Rebuilding & restarting WAHA container..."
+          docker compose up -d --build --remove-orphans
+
+          echo "🧹 4. Pruning unused Docker images..."
+          docker image prune -f
+
+          echo "✅ WAHA Deployment complete for ${RELEASE_TAG}!"
+          EOF
